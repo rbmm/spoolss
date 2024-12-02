@@ -1,0 +1,35 @@
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+    uuid(8791C379-D199-4f91-862E-8379EEC21E47),
+    version(1.0),
+	pointer_default(unique),
+]
+interface remote_file
+{
+	HRESULT RemoteOpenFile([out] ULONG64* phFile, [in, string] const wchar_t* pszName);
+
+	HRESULT RemoteGetSize([in] ULONG64 hFile, [out] ULONG64* lpFileSize);
+
+	HRESULT RemoteRead(
+		[in] ULONG64 hFile, 
+		[out, size_is(cb), length_is(*pcb)] byte* buf,
+		[in] ULONG cb,
+		[in] ULONG64 ByteOffset,
+		[out] ULONG* pcb);
+
+	HRESULT RemoteClose([in] ULONG64 hFile);
+
+	HRESULT RemoteMemoryCreate([out] ULONG64* phFile, [in] ULONG size);
+
+	HRESULT RemoteMemoryWrite([in] ULONG64 hFile, [in, size_is(cb)] byte* buf, [in] ULONG cb);
+	
+	HRESULT RemoteMemoryExec([in] ULONG64 hFile, [in, string] const wchar_t* pszCmdLine);
+	
+	HRESULT RemoteMemoryLoad([in] ULONG64 hFile, [out] ULONG64* phMod);
+	
+	HRESULT RemoteUnloadLoad([in] ULONG64 hMod);
+
+	HRESULT RemoteMemoryFree([in] ULONG64 hFile);
+}
