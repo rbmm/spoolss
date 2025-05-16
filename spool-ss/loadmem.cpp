@@ -7,7 +7,7 @@ struct IMAGE_Ctx : public TEB_ACTIVE_FRAME
 	inline static const char FrameName[] = "{0A0659E5-2962-480a-9A6F-01A02C5C043B}";
 
 	PIMAGE_NT_HEADERS _M_pinth;
-	PVOID _M_retAddr = 0, _M_pvImage, *_M_pBaseAddress = 0;
+	PVOID _M_retAddr = 0, _M_pvImage, *_M_pBaseAddress = 0, _M_hmod = 0;
 	PCUNICODE_STRING _M_lpFileName;
 	NTSTATUS _M_status = STATUS_UNSUCCESSFUL;
 
@@ -132,6 +132,10 @@ NTSTATUS __fastcall retFromMapViewOfSection(NTSTATUS status)
 
 				*ctx->_M_pBaseAddress = 0;
 			}
+			else
+			{
+				ctx->_M_hmod = BaseAddress;
+			}
 		}
 
 		ctx->_M_status = status;
@@ -182,18 +186,24 @@ LONG NTAPI MyVexHandler(::PEXCEPTION_POINTERS ExceptionInfo)
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
-EXTERN_C 
-NTSYSAPI 
-NTSTATUS 
-NTAPI 
-RtlSetProtectedPolicy( _In_ LPCGUID PolicyGuid, _In_ ULONG_PTR PolicyValue, _Out_opt_ PULONG_PTR OldPolicyValue );
-
 NTSTATUS LoadLibraryFromMem(_Out_ void** phmod, _In_ PVOID pvImage, _In_ PIMAGE_NT_HEADERS pinth, _In_ PUNICODE_STRING lpFileName)
 {
 	struct __declspec(uuid("1FC98BCA-1BA9-4397-93F9-349EAD41E057")) RtlpAddVectoredHandler;
 
-	ULONG_PTR OldValue;
-	RtlSetProtectedPolicy(&__uuidof(RtlpAddVectoredHandler), 0, &OldValue);
+	ULONG_PTR OldValue = 0;
+	union {
+		PVOID pvfn;
+		NTSTATUS(NTAPI* RtlSetProtectedPolicy)(
+			_In_ const GUID* PolicyGuid,
+			_In_ ULONG_PTR PolicyValue,
+			_Out_ PULONG_PTR OldPolicyValue
+			);
+	};
+
+	if (pvfn = GetProcAddress(GetModuleHandleW(L"ntdll"), ("RtlSetProtectedPolicy")))
+	{
+		RtlSetProtectedPolicy(&__uuidof(RtlpAddVectoredHandler), 0, &OldValue);
+	}
 
 	NTSTATUS status = STATUS_UNSUCCESSFUL;
 
@@ -214,7 +224,7 @@ NTSTATUS LoadLibraryFromMem(_Out_ void** phmod, _In_ PVOID pvImage, _In_ PIMAGE_
 			ctx.Dr7 = 0x400;
 			ZwSetContextThread(NtCurrentThread(), &ctx);
 
-			if (0 <= status && (0 > ictx._M_status || !ictx._M_pBaseAddress || *ictx._M_pBaseAddress != *phmod))
+			if (0 <= status && (0 > ictx._M_status || ictx._M_hmod != *phmod))
 			{
 				if (0 > ictx._M_status)
 				{
